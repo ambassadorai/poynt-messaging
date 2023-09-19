@@ -2,15 +2,15 @@
 
 import requests
 import logging
-import httplib
-import urllib
+import http.client
+import urllib.request, urllib.parse, urllib.error
 import json
 import sys
 import time
 import rsa
 import uuid
 import jwt
-import ConfigParser
+import configparser
 import getopt
 import random
 import pprint
@@ -33,20 +33,20 @@ try:
 except ImportError:
     has_crypto = False
 
-POYNT_CONFIG = ConfigParser.ConfigParser()
+POYNT_CONFIG = configparser.ConfigParser()
 
 def utc_timestamp():
     return timegm(datetime.utcnow().utctimetuple())
 
 def ensure_bytes(key):
-    if isinstance(key, unicode):
+    if isinstance(key, str):
         key = key.encode('utf-8')
 
     return key
 
 def prettyPrint(jsonObj):
-    print json.dumps(jsonObj, sort_keys=True, indent=4)
-    print '*' * 60
+    print(json.dumps(jsonObj, sort_keys=True, indent=4))
+    print('*' * 60)
 
 def pretty_print_POST(req):
     """
@@ -57,12 +57,12 @@ def pretty_print_POST(req):
     this function because it is programmed to be pretty
     printed and may differ from the actual request.
     """
-    print('{}\n{}\n{}\n\n{}'.format(
+    print(('{}\n{}\n{}\n\n{}'.format(
         '-----------START-----------',
         req.method + ' ' + req.url,
-        '\n'.join('{}: {}'.format(k, v) for k, v in req.headers.items()),
+        '\n'.join('{}: {}'.format(k, v) for k, v in list(req.headers.items())),
         req.body,
-    ))
+    )))
 
 class PoyntAPI:
 
@@ -72,7 +72,7 @@ class PoyntAPI:
         self.apiHost = apiHost
         self.applicationId = applicationId
         if self.debug == True:
-            httplib.HTTPConnection.debuglevel = 1
+            http.client.HTTPConnection.debuglevel = 1
             logging.basicConfig()
             logging.getLogger().setLevel(logging.DEBUG)
             requests_log = logging.getLogger("requests.packages.urllib3")
@@ -82,7 +82,7 @@ class PoyntAPI:
             self.rsaPrivateKey = load_pem_private_key(ensure_bytes(rsa_priv_file.read()), password=None, backend=default_backend())
         with open(PUBLIC_KEY_FILE, 'r') as rsa_pub_file:
             self.rsaPublicKey = load_pem_public_key(ensure_bytes(rsa_pub_file.read()), backend=default_backend())
-	with open(POYNT_PUBLIC_KEY_FILE, 'r') as rsa_poynt_pub_file:
+        with open(POYNT_PUBLIC_KEY_FILE, 'r') as rsa_poynt_pub_file:
             self.rsaPoyntPublicKey = load_pem_public_key(ensure_bytes(rsa_poynt_pub_file.read()), backend=default_backend())
 
 
@@ -105,7 +105,7 @@ class PoyntAPI:
         encodedJWT = jwt.encode(payload, self.rsaPrivateKey, algorithm='RS256')
         #print encodedJWT
         payload = {'grantType':'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion':encodedJWT}
-        print "Obtaining AccessToken using self-signed JWT:"
+        print("Obtaining AccessToken using self-signed JWT:")
         code, jsonObj = self._sendFormPostRequest(poyntTokenUrl, payload, {})
         #r = requests.post(poyntTokenUrl, data=payload, headers=headers)
         #prettyPrint(r.json())
@@ -115,13 +115,13 @@ class PoyntAPI:
             self.refreshToken = jsonObj['refreshToken']
             return True
         else:
-            print "*** FAILED TO OBTAIN ACCESS TOKEN ***"
+            print("*** FAILED TO OBTAIN ACCESS TOKEN ***")
             return False
 
     def refreshAccessToken(self):
         poyntTokenUrl = self.apiHost + "/token"
         payload = {'grantType':'REFRESH_TOKEN', 'refreshToken':self.refreshToken}
-        print "Refreshing AccessToken:"
+        print("Refreshing AccessToken:")
         code, jsonObj = self._sendFormPostRequest(poyntTokenUrl, payload, {})
         #r = requests.post(poyntTokenUrl, data=payload, headers=headers)
         #prettyPrint(r.json())
@@ -131,12 +131,12 @@ class PoyntAPI:
             self.refreshToken = jsonObj['refreshToken']
             return True
         else:
-            print "*** FAILED TO REFRESH ACCESS TOKEN ***"
+            print("*** FAILED TO REFRESH ACCESS TOKEN ***")
             return False
 
     def getCatalog(self, businessId, catalogId):
         poyntCatalogUrl = self.apiHost + "/businesses/" + businessId + "/catalogs/" + catalogId
-        print "Getting catalog: " + catalogId
+        print("Getting catalog: " + catalogId)
         code, jsonObj = self._sendGetRequest(poyntCatalogUrl, {}, {})
 
     def addDiscount(self, businessId, catalogId):
@@ -174,55 +174,55 @@ class PoyntAPI:
                 ]
               }
             ]
-        print "Updating Catalog:"
+        print("Updating Catalog:")
         code, jsonObj = self._sendPatchRequest(poyntCatalogUrl, json.dumps(jsonPatch), {}, {})
 
 
     def getCatalogs(self, businessId):
         poyntCatalogUrl = self.apiHost + "/businesses/" + businessId + "/catalogs"
-        print "Getting all Catalogs associated with business:"
+        print("Getting all Catalogs associated with business:")
         code, jsonObj = self._sendGetRequest(poyntCatalogUrl, {}, {})
         if code == requests.codes.ok:
-            print "# of Catalogs found:" + str(len(jsonObj['catalogs']))
+            print("# of Catalogs found:" + str(len(jsonObj['catalogs'])))
             return jsonObj['catalogs']
 
     def getProducts(self, businessId):
         poyntProductUrl = self.apiHost + "/businesses/" + businessId + "/products"
-        print "Getching all Products associated with business:"
+        print("Getching all Products associated with business:")
         code, jsonObj = self._sendGetRequest(poyntProductUrl, {}, {})
         if code == requests.codes.ok:
-            print "# of Products found:" + str(len(jsonObj['products']))
+            print("# of Products found:" + str(len(jsonObj['products'])))
 
     def getTaxes(self, businessId):
         poyntTaxesUrl = self.apiHost + "/businesses/" + businessId + "/taxes"
-        print "Getching all Taxes associated with business:"
+        print("Getching all Taxes associated with business:")
         code, jsonObj = self._sendGetRequest(poyntTaxesUrl, {}, {})
 
     def getCustomers(self, businessId):
         poyntCustomersUrl = self.apiHost + "/businesses/" + businessId + "/customers"
-        print "Getching all Customers associated with business:"
+        print("Getching all Customers associated with business:")
         code, jsonObj = self._sendGetRequest(poyntCustomersUrl, {}, {})
 
     def getHooks(self, businessId):
         poyntHooksUrl = self.apiHost + "/hooks"
         queryParameters = { 'businessId': businessId}
-        print "Getching all webhook Urls associated with business:"
+        print("Getching all webhook Urls associated with business:")
         code, jsonObj = self._sendGetRequest(poyntHooksUrl, queryParameters, {})
 
     def getBusiness(self, businessId):
         poyntBusinessUrl = self.apiHost + "/businesses/" + businessId
-        print "Fetching Business information:"
+        print("Fetching Business information:")
         code, jsonObj = self._sendGetRequest(poyntBusinessUrl, {}, {})
         return jsonObj
 
     def getBusinessUsers(self, businessId):
         poyntBusinessUsersUrl = self.apiHost + "/businesses/" + businessId + "/businessUsers"
-        print "Fetching Business Users:"
+        print("Fetching Business Users:")
         code, jsonObj = self._sendGetRequest(poyntBusinessUsersUrl, {}, {})
 
     def registerWebhooks(self, businessId):
         poyntWebHookUrl = self.apiHost + "/hooks"
-        print "Registering Webhooks:"
+        print("Registering Webhooks:")
         hook = {
             "applicationId": self.applicationId,
             "businessId": businessId,
@@ -314,7 +314,7 @@ class PoyntAPI:
                 }
               }
           ]
-        print "Recording a new Order:"
+        print("Recording a new Order:")
         code, jsonObj = self._sendPostRequest(poyntOrderUrl, json.dumps(order), {}, {})
         if code == requests.codes.ok or code == requests.codes.created:
             self.getOrder(businessId, jsonObj['id'])
@@ -324,13 +324,13 @@ class PoyntAPI:
 
     def getOrder(self, businessId, orderId):
         poyntOrderUrl = self.apiHost + "/businesses/" + businessId + "/orders/" + orderId
-        print "Fetching an Order:"
+        print("Fetching an Order:")
         code, jsonObj = self._sendGetRequest(poyntOrderUrl, {}, {})
         return jsonObj
 
     def getOrders(self, businessId):
         poyntOrdersUrl = self.apiHost + "/businesses/" + businessId + "/orders"
-        print "Fetching last 5 Orders updated in the last 1 month:"
+        print("Fetching last 5 Orders updated in the last 1 month:")
         lastHourDateTime = datetime.now() +  timedelta(hours=24*30)
         headers = { 'If-Modified-Since': lastHourDateTime.strftime("%Y-%m-%dT%H:%M:%SZ") }
         queryParameters = { 'limit': 5 }
@@ -341,7 +341,7 @@ class PoyntAPI:
         # 100,000 catalogs should be more than enough ;-)
         randomNumber = random.randint(1, 100000)
         catalogName = 'TestCatalog-' + str(randomNumber)
-        print "Bulk uploading product catalog:" + catalogName
+        print("Bulk uploading product catalog:" + catalogName)
         #update the test catalog with name
         with open('config/product-catalog.csv','r') as f:
             newlines = []
@@ -357,7 +357,7 @@ class PoyntAPI:
                     "User-Agent": 'PoyntSample-Python',
                     'Poynt-Request-Id': requestId,
                     'Authorization': self.tokenType + " " + self.accessToken }
-        print "\tPOST " + poyntProductsUrl
+        print("\tPOST " + poyntProductsUrl)
         startTime = datetime.now()
         #NOTE: we upload the modified catalog
         files = { 'productUpload': open('config/_updated-catalog.csv', 'rb')}
@@ -369,8 +369,8 @@ class PoyntAPI:
         r = s.send(prepared)
         endTime = datetime.now()
         delta = endTime - startTime
-        print "\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs"
-        print "\tHTTP RESPONSE CODE:" + str(r.status_code)
+        print("\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs")
+        print("\tHTTP RESPONSE CODE:" + str(r.status_code))
         return r.status_code, r.text
 
     def sendCloudMessage(self, businessId, storeId, packageName, className, data):
@@ -395,7 +395,7 @@ class PoyntAPI:
             }
         code, jsonObj = self._sendPostRequest(pcmUrl, json.dumps(cloudMessage), {}, {})
         if code == requests.codes.accepted:
-            print "Successfully sent cloud message."
+            print("Successfully sent cloud message.")
 
     def generateReceiptImage(self, businessId, storeId):
       business = self.getBusiness(businessId)
@@ -415,7 +415,7 @@ class PoyntAPI:
 
       row = 0
       for line in sarray:
-        print line
+        print(line)
         d.text((0,row), line.strip('\n'), font=imagefont, fill="black")
         row += 14
       i.save(open(filename, "wb"), "PNG")
@@ -495,24 +495,24 @@ class PoyntAPI:
                     'Poynt-Request-Id': requestId,
                     'Content-Type': 'application/json;charset=UTF-8',
                     'Authorization': self.tokenType + " " + self.accessToken}
-        headers = dict(commonHeaders.items() + customHeaders.items())
+        headers = dict(list(commonHeaders.items()) + list(customHeaders.items()))
         startTime = datetime.now()
         req = requests.Request('POST', url, data=payload, params=queryParameters, headers=headers)
         prepared = req.prepare()
         if self.debug == True:
             pretty_print_POST(prepared)
         else:
-            print "\tPOST " + url
+            print("\tPOST " + url)
         s = requests.Session()
         r = s.send(prepared)
         endTime = datetime.now()
         delta = endTime - startTime
-        print "\tHTTP RESPONSE CODE:" + str(r.status_code)
-        print "\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs"
+        print("\tHTTP RESPONSE CODE:" + str(r.status_code))
+        print("\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs")
         if r.status_code == requests.codes.unauthorized:
-                    print "\t Request merchant authorization by sending them to: " + self._generateAuthzUrl()
+                    print("\t Request merchant authorization by sending them to: " + self._generateAuthzUrl())
         if r.text and self.debug:
-            print "\tRESPONSE JSON:"
+            print("\tRESPONSE JSON:")
             prettyPrint(r.json())
         if r.text:
             return r.status_code, r.json()
@@ -526,20 +526,20 @@ class PoyntAPI:
                     'Poynt-Request-Id': requestId,
                     'Content-Type': 'application/json;charset=UTF-8',
                     'Authorization': self.tokenType + " " + self.accessToken}
-        headers = dict(commonHeaders.items() + customHeaders.items())
+        headers = dict(list(commonHeaders.items()) + list(customHeaders.items()))
         startTime = datetime.now()
         req = requests.Request('DELETE', url, headers=headers)
         prepared = req.prepare()
         if self.debug == True:
             pretty_print_POST(prepared)
         else:
-            print "\tDELETE " + url
+            print("\tDELETE " + url)
         s = requests.Session()
         r = s.send(prepared)
         endTime = datetime.now()
         delta = endTime - startTime
-        print "\tHTTP RESPONSE CODE:" + str(r.status_code)
-        print "\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs"
+        print("\tHTTP RESPONSE CODE:" + str(r.status_code))
+        print("\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs")
         return r.status_code
 
     def _sendPatchRequest(self, url, payload, queryParameters, customHeaders):
@@ -549,22 +549,22 @@ class PoyntAPI:
                     'Poynt-Request-Id': requestId,
                     'Content-Type': 'application/json;charset=UTF-8',
                     'Authorization': self.tokenType + " " + self.accessToken}
-        headers = dict(commonHeaders.items() + customHeaders.items())
+        headers = dict(list(commonHeaders.items()) + list(customHeaders.items()))
         startTime = datetime.now()
         req = requests.Request('PATCH', url, data=payload, params=queryParameters, headers=headers)
         prepared = req.prepare()
         if self.debug == True:
             pretty_print_POST(prepared)
         else:
-            print "\tPOST " + url
+            print("\tPOST " + url)
         s = requests.Session()
         r = s.send(prepared)
         endTime = datetime.now()
         delta = endTime - startTime
-        print "\tHTTP RESPONSE CODE:" + str(r.status_code)
-        print "\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs"
+        print("\tHTTP RESPONSE CODE:" + str(r.status_code))
+        print("\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs")
         if self.debug == True:
-            print "\tRESPONSE JSON:"
+            print("\tRESPONSE JSON:")
             prettyPrint(r.json())
         return r.status_code, r.json()
 
@@ -573,25 +573,25 @@ class PoyntAPI:
         commonHeaders = { 'api-version':POYNT_API_VERSION,
                     "User-Agent": 'PoyntSample-Python',
                     'Poynt-Request-Id': requestId }
-        headers = dict(commonHeaders.items() + customHeaders.items())
+        headers = dict(list(commonHeaders.items()) + list(customHeaders.items()))
         startTime = datetime.now()
         req = requests.Request('POST', url, data=payload, headers=headers)
         prepared = req.prepare()
         if self.debug == True:
             pretty_print_POST(prepared)
         else:
-            print "\tPOST " + url
+            print("\tPOST " + url)
         s = requests.Session()
         r = s.send(prepared)
         endTime = datetime.now()
         delta = endTime - startTime
-        print "\tHTTP RESPONSE CODE:" + str(r.status_code)
-        print "\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs"
+        print("\tHTTP RESPONSE CODE:" + str(r.status_code))
+        print("\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs")
         if self.debug == True:
-            print "\tRESPONSE JSON:"
+            print("\tRESPONSE JSON:")
             prettyPrint(r.json())
         if r.status_code == 401:
-            print "\t Request merchant authorization by sending them to: " + self._generateAuthzUrl()
+            print("\t Request merchant authorization by sending them to: " + self._generateAuthzUrl())
         return r.status_code, r.json()
 
 #requests status codes: https://github.com/kennethreitz/requests/blob/master/requests/status_codes.py
@@ -599,29 +599,29 @@ class PoyntAPI:
         commonHeaders = { 'api-version':POYNT_API_VERSION,
                     "User-Agent": 'PoyntSample-Python',
                     'Authorization': self.tokenType + " " + self.accessToken }
-        headers = dict(commonHeaders.items() + customHeaders.items())
+        headers = dict(list(commonHeaders.items()) + list(customHeaders.items()))
         startTime = datetime.now()
         req = requests.Request('GET', url, params=queryParameters, headers=headers)
         prepared = req.prepare()
         if self.debug == True:
             pretty_print_POST(prepared)
         else:
-            print "\tGET " + url
+            print("\tGET " + url)
         s = requests.Session()
         r = s.send(prepared)
         endTime = datetime.now()
         delta = endTime - startTime
-        print "\tHTTP RESPONSE CODE:" + str(r.status_code)
-        print "\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs"
+        print("\tHTTP RESPONSE CODE:" + str(r.status_code))
+        print("\tRESPONSE TIME: " + str(delta.total_seconds() * 1000) + " msecs")
         if self.debug == True:
-            print "\tRESPONSE JSON:"
+            print("\tRESPONSE JSON:")
             prettyPrint(r.json())
         if r.status_code == requests.codes.unauthorized:
-            print "\t Request merchant authorization by sending them to: " + self._generateAuthzUrl()
+            print("\t Request merchant authorization by sending them to: " + self._generateAuthzUrl())
 
         if r.status_code == requests.codes.not_modified:
-            print "\t Order not modified since given if-modified-since time"
-            return r.status_code, {} 
+            print("\t Order not modified since given if-modified-since time")
+            return r.status_code, {}
         else:
             return r.status_code, r.json()
 
@@ -631,7 +631,7 @@ class PoyntAPI:
                     'callback' : 'https://your-site.com/update-this-url',
                     'context' : 'python-test-script'
                     }
-        return poyntAuthzUrl + urllib.urlencode(params)
+        return poyntAuthzUrl + urllib.parse.urlencode(params)
     # jwt.decode verifies JWT signature and fails with jwt.exceptions.DecodeError if signature is invalid
     def verifyJwtSignature(self):
         claims=jwt.decode(self.accessToken, self.rsaPoyntPublicKey,algorithms=['RS256'],audience=self.applicationId)
@@ -650,19 +650,19 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv,"he:v",['env=', 'verbose'])
     except getopt.GetoptError:
-        print 'PoyntAPI.py -e < CI or LIVE > -v'
+        print('PoyntAPI.py -e < CI or LIVE > -v')
         sys.exit(2)
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'PoyntAPI.py -e < CI or LIVE > -v'
+            print('PoyntAPI.py -e < CI or LIVE > -v')
             sys.exit()
         elif opt in ('-e', '--env'):
             POYNT_ENV = arg.upper()
         elif opt in ('-v', '--verbose'):
             DEBUG = True
 
-    print "Executing APIs in ", POYNT_ENV
+    print("Executing APIs in ", POYNT_ENV)
     POYNT_CONFIG.read(base_dir + '/config/poynt.ini')
     ### POYNT API URL and VERSION, Application settings
     POYNT_API_HOST_URL = POYNT_CONFIG.get(POYNT_ENV,'POYNT_API_HOST_URL')
@@ -707,11 +707,11 @@ def main(argv):
             #poyntAPI.sendCloudMessage(BUSINESS_ID, STORE_ID, "", "", "{\"action\":\"sale\", \"purchaseAmount\": 1000, \"tipAmount\": 100, \"currency\":\"USD\", \"referenceId\":\"ABC1234\", \"callbackUrl\":\"http%3A%2F%2Frequestb.in%2F11odyf81\"}")
             #poyntAPI.sendCloudMessage(BUSINESS_ID, STORE_ID, "", "", "{\"action\":\"non-reference-credit\", \"purchaseAmount\": 1000, \"tipAmount\": 100, \"currency\":\"USD\", \"referenceId\":\"ABC1234\", \"callbackUrl\":\"http%3A%2F%2Frequestb.in%2F11odyf81\"}")
             #poyntAPI.sendCloudMessage(BUSINESS_ID, STORE_ID, "", "", "{\"action\":\"refund\", \"transactionId\":\"{transactionId}\",\"referenceId\":\"ABC1234\", \"callbackUrl\":\"http%3A%2F%2Frequestb.in%2F11odyf81\"}")
-	    #poyntAPI.verifyJwtSignature()
+            #poyntAPI.verifyJwtSignature()
         else:
-            print "Cannot continue without an AccessToken!"
+            print("Cannot continue without an AccessToken!")
     else:
-        print '\'cryptography\' package is required!'
+        print('\'cryptography\' package is required!')
 
 if __name__ == "__main__":
     main(sys.argv[1:])

@@ -1,7 +1,7 @@
 from flask import Flask
 from flask import request
-import urllib
-import urllib2
+import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.error, urllib.parse
 app = Flask(__name__)
 app.debug = True
 
@@ -48,10 +48,10 @@ def launch_payment():
                     "businessId": "b51ab636-fe82-4286-bbd3-8ee73a7c922f"
                 }
 
-    data = urllib.urlencode(form_dict)
-    req = urllib2.Request(url, data)
+    data = urllib.parse.urlencode(form_dict)
+    req = urllib.request.Request(url, data)
     req.add_header("Authorization", jwt)
-    iresponse = urllib2.urlopen(req)
+    iresponse = urllib.request.urlopen(req)
     the_page = response.read()
     return the_page
 
